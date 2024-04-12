@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <functional>
 #include <queue>
 #include <unordered_set>
 #include <boost/asio.hpp>
@@ -11,6 +12,8 @@ namespace PM{
     using boost::system::error_code;
     using std::cout;
     using std::endl;
+    using msgHandler = std::function<void(std::string)>;
+    using errHandler = std::function<void()>;
 
     class TCPConnection : public std::enable_shared_from_this<TCPConnection>{
         public:
@@ -23,13 +26,16 @@ namespace PM{
             tcp::socket& socket(){
                 return _socket;
             }
-            void start();
+            void start(msgHandler&& msgHandler, errHandler&& errHandler);
             void send(const std::string& msg);
+            inline const std::string& getUsername() const { return _name; }
         private:
             tcp::socket _socket;
             std::string _name; 
             std::queue<std::string> _outgoingMsgs;
             boost::asio::streambuf _streamBuff {65536};
+            msgHandler _msgHandler;
+            errHandler _errHandler;
 
             explicit TCPConnection(tcp::socket&& socket);
             void asyncRead();
@@ -40,8 +46,17 @@ namespace PM{
 
     class TCPServer{
         public:
+            using onJoinHandler = std::function<void(TCPConnection::TCPPointer)>;
+            using onLeaveHandler = std::function<void(TCPConnection::TCPPointer)>;
+            using onClientMsgHandler = std::function<void(std::string, TCPConnection::TCPPointer)>;
+
             TCPServer(int port);
             int run();
+            onJoinHandler onJoin;
+            onLeaveHandler onLeave;
+            onClientMsgHandler onClientMsg;
+
+
         private:
             int _port;
             boost::asio::io_context _ioContext;

@@ -1,4 +1,4 @@
-#include <PMNetworking/Server.h>
+#include <PMLibrary/Server.h>
 #include <iostream>
 
 namespace PM{
@@ -23,10 +23,25 @@ namespace PM{
         _acceptor.async_accept(*_socket, [this](const error_code& error){
             auto conn = TCPConnection::create(std::move(*_socket));
 
+            if (onJoin){
+                onJoin(conn);
+            }
+
             _connections.insert(conn);
 
             if (!error){
-                conn->start();
+                conn->start(
+                    [this, conn](const std::string& msg){
+                        if (onClientMsg){
+                            onClientMsg(msg, conn);
+                        }
+                    },
+                    [&, weak = std::weak_ptr(conn)](){
+                        if (auto shared = weak.lock(); shared && _connections.erase(shared)){
+                            if (onLeave) onLeave(shared);
+                        }
+                    }
+                );
             }
 
             startAccept();
@@ -43,7 +58,10 @@ namespace PM{
         _name = name.str();
     }
     
-    void TCPConnection::start(){
+    void TCPConnection::start(msgHandler&& msgHandler, errHandler&& errHandler){
+        _msgHandler = std::move(msgHandler);
+        _errHandler = std::move(errHandler);
+
         asyncRead();
     }
 
@@ -55,13 +73,15 @@ namespace PM{
     void TCPConnection::onRead(error_code ec, size_t bLen){
         if (ec){
             _socket.close();
+
+            _errHandler();
             return;
         }
 
         std::stringstream msg;
         msg << _name << ": " << std::istream(&_streamBuff).rdbuf();
 
-        cout << msg.str();
+        _msgHandler(msg.str());
         asyncRead();
     };
 
@@ -83,6 +103,7 @@ namespace PM{
     void TCPConnection::onWrite(error_code ec, size_t bLen){
         if (ec){
             _socket.close();
+            _errHandler();
             return;
         }
 

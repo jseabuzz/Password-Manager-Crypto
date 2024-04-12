@@ -1,13 +1,62 @@
 #include <iostream>
+#include <PMLibrary/Server.h>
 #include <boost/asio.hpp>
-#include <PMNetworking/Server.h>
+
 
 int main(int, char**){
     PM::TCPServer server(6969);
+
+    server.onJoin = [](PM::TCPConnection::TCPPointer tcpConn){
+        std::cout << "user has joined the server: " << tcpConn->getUsername() << std::endl;
+    };
+
+    server.onLeave = [](PM::TCPConnection::TCPPointer tcpConn){
+        std::cout << "user has left the server: " << tcpConn->getUsername() << std::endl;
+    };
+
+    server.onClientMsg = [](const std::string& msg, PM::TCPConnection::TCPPointer tcpConn){
+        std::cout << "user has send the message: " << msg << std::endl;
+        tcpConn->send(msg);
+    };
+
     server.run();
     
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
